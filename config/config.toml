@@ -1,0 +1,36 @@
+# ==========================================
+# Server 설정
+# ==========================================
+[server]
+port = ":8080"
+
+# ==========================================
+# Database 설정 (PostgreSQL)
+# ==========================================
+[database]
+enabled = true
+host = "${DB_HOST}"
+port = 5432
+user = "${DB_USER}"
+password = "${DB_PASSWORD}"
+dbname = "${DB_NAME}"
+sslmode = "disable"
+
+# ==========================================
+# MinIO 설정 (배지 이미지 저장)
+# ==========================================
+[minio]
+enabled = false
+endpoint = "${MINIO_ENDPOINT}"
+access_key_id = "${MINIO_ACCESS_KEY}"
+secret_access_key = "${MINIO_SECRET_KEY}"
+use_ssl = false
+bucket_name = "openbadge"
+
+# ==========================================
+# Auth 설정 (API 인증)
+# ==========================================
+[auth]
+enabled = false
+secret_key = "${AUTH_SECRET_KEY}"
+issuer = "openbadge"
