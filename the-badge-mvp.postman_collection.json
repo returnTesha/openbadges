@@ -1,0 +1,386 @@
+{
+  "info": {
+    "name": "The Badge MVP Final",
+    "description": "MVP-ACTION.md 순서대로 실행.\n\n배지 #1 (홍길동) → 발급 → 검증 → 이미지 교체\n배지 #2 (김철수) → 발급 → 오발급 취소 → 취소 확인\n\nBackend: http://localhost:3000\nFrontend: http://localhost:3001/verify",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000", "type": "string" },
+    { "key": "badge1_json", "value": "", "type": "string" },
+    { "key": "badge1_id", "value": "", "type": "string" },
+    { "key": "badge2_json", "value": "", "type": "string" },
+    { "key": "badge2_id", "value": "", "type": "string" },
+    { "key": "reissued_badge_json", "value": "", "type": "string" },
+    { "key": "reissued_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Step 0. 서버 상태 확인",
+      "item": [
+        {
+          "name": "0-1. 🔧 Health Check",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('서버 정상', function() {",
+            "    pm.response.to.have.status(200);",
+            "    console.log('✅ 서버 정상');",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": "{{base_url}}/health" }
+        },
+        {
+          "name": "0-2. 🔧 DID Document 확인",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('DID Document', function() {",
+            "    pm.response.to.have.status(200);",
+            "    var j = pm.response.json();",
+            "    console.log('✅ DID:', j.id);",
+            "    console.log('공개키:', j.verificationMethod[0].publicKeyMultibase);",
+            "    if (j.service && j.service[0]) {",
+            "        var s = j.service[0].serviceEndpoint;",
+            "        console.log('Network:', s.network);",
+            "        console.log('KeyRegistry:', s.keyRegistryAddress);",
+            "        console.log('BadgeRegistry:', s.badgeRegistryAddress);",
+            "    }",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": "{{base_url}}/.well-known/did.json" }
+        }
+      ]
+    },
+    {
+      "name": "Step 1. 배지 발급 (2건)",
+      "item": [
+        {
+          "name": "1-1. 🔧 배지 #1 발급 — 홍길동 리더십 (이미지 교체용)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('배지 #1 발급 성공', function() {",
+            "    pm.response.to.have.status(201);",
+            "    var d = pm.response.json().data;",
+            "    pm.expect(d.proof).to.exist;",
+            "    pm.collectionVariables.set('badge1_json', JSON.stringify(d));",
+            "    var id = (d.id || '').split('/').pop();",
+            "    pm.collectionVariables.set('badge1_id', id);",
+            "    console.log('=== 배지 #1 발급 (이미지 교체용) ===');",
+            "    console.log('credential_id:', id);",
+            "    var sub = d.credentialSubject || {};",
+            "    console.log('수령자:', sub.name);",
+            "    console.log('대학:', (sub.source||{}).code);",
+            "    console.log('비교과:', (sub.achievement||{}).name);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"university_code\": \"SNU\",\n  \"program_id\": \"NPI00001\",\n  \"program_category\": \"LEADERSHIP\",\n  \"student_id\": \"2021-12345\",\n  \"recipient_name\": \"홍길동\",\n  \"recipient_email\": \"hong@snu.ac.kr\",\n  \"achievement_name\": \"리더십 역량 프로그램\",\n  \"achievement_desc\": \"비교과 리더십 역량 개발 프로그램 이수\",\n  \"criteria\": \"리더십 캠프 참여 + 멘토링 활동 40시간 이상 완료\",\n  \"image_base64\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}", "options": { "raw": { "language": "json" } } },
+            "description": "배지 #1: 홍길동 리더십 역량 → Step 6에서 이미지 교체 재발급에 사용"
+          }
+        },
+        {
+          "name": "1-2. 🔧 배지 #2 발급 — 김철수 글로벌 (오발급 취소용)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('배지 #2 발급 성공', function() {",
+            "    pm.response.to.have.status(201);",
+            "    var d = pm.response.json().data;",
+            "    pm.collectionVariables.set('badge2_json', JSON.stringify(d));",
+            "    var id = (d.id || '').split('/').pop();",
+            "    pm.collectionVariables.set('badge2_id', id);",
+            "    console.log('=== 배지 #2 발급 (오발급 취소용) ===');",
+            "    console.log('credential_id:', id);",
+            "    var sub = d.credentialSubject || {};",
+            "    console.log('수령자:', sub.name);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"university_code\": \"SNU\",\n  \"program_id\": \"NPI00002\",\n  \"program_category\": \"GLOBAL_COMM\",\n  \"student_id\": \"2022-67890\",\n  \"recipient_name\": \"김철수\",\n  \"recipient_email\": \"kim@snu.ac.kr\",\n  \"achievement_name\": \"글로벌 커뮤니케이션 역량\",\n  \"achievement_desc\": \"비교과 글로벌 역량 프로그램 이수\",\n  \"criteria\": \"영어토론 동아리 + 국제교류 봉사 30시간 이상\",\n  \"image_base64\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==\"\n}", "options": { "raw": { "language": "json" } } },
+            "description": "배지 #2: 김철수 글로벌 커뮤니케이션 → Step 7에서 오발급 취소에 사용"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Step 2. 배지 다운로드",
+      "item": [
+        {
+          "name": "2-1. 🌐 배지 #1 다운로드",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/badges/c/{{badge1_id}}/download", "description": "🌐 브라우저에서 URL 입력하면 .json 파일 다운로드" }
+        },
+        {
+          "name": "2-2. 🌐 배지 #2 다운로드",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/badges/c/{{badge2_id}}/download" }
+        }
+      ]
+    },
+    {
+      "name": "Step 3. 배지 검증 (API)",
+      "item": [
+        {
+          "name": "3-1. 🔧 배지 #1 정상 검증 → valid: true",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('배지 #1 검증 성공', function() {",
+            "    var d = pm.response.json().data;",
+            "    pm.expect(d.valid).to.be.true;",
+            "    console.log('배지 #1 검증: ✅ valid');",
+            "    console.log('수령자:', d.recipient_name);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/verify-sync",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{badge1_json}}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "3-2. 🔧 배지 #2 정상 검증 → valid: true",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('배지 #2 검증 성공', function() {",
+            "    var d = pm.response.json().data;",
+            "    pm.expect(d.valid).to.be.true;",
+            "    console.log('배지 #2 검증: ✅ valid (취소 전)');",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/verify-sync",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{badge2_json}}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "3-3. 🔧 위변조 배지 검증 → valid: false",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "var b = JSON.parse(pm.collectionVariables.get('badge1_json') || '{}');",
+              "if (b.credentialSubject) { b.credentialSubject.name = '위조자'; }",
+              "pm.variables.set('tampered', JSON.stringify(b));"
+            ]}},
+            { "listen": "test", "script": { "exec": [
+              "pm.test('위변조 탐지', function() {",
+              "    pm.expect(pm.response.json().data.valid).to.be.false;",
+              "    console.log('위변조 검증: ❌ invalid');",
+              "});"
+            ]}}
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/verify-sync",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{tampered}}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Step 4. Frontend 검증 (드래그 앤 드롭)",
+      "item": [
+        {
+          "name": "4-1. 🌐 배지 #1 파일 검증 → 성공",
+          "request": { "method": "GET", "url": "http://localhost:3001/verify", "description": "🌐 브라우저에서 실행\n\nStep 2에서 다운로드한 배지 #1 파일을 드래그 앤 드롭\n→ 5단계 검증 과정 ✅\n\n(Postman에서 실행하지 않음)" }
+        },
+        {
+          "name": "4-2. 🌐 위변조 파일 검증 → 실패",
+          "request": { "method": "GET", "url": "http://localhost:3001/verify", "description": "🌐 브라우저에서 실행\n\n다운로드한 .json을 텍스트 에디터로 열어서 내용 변경 후 드래그 앤 드롭\n→ 검증 실패 ❌\n\n(Postman에서 실행하지 않음)" }
+        }
+      ]
+    },
+    {
+      "name": "Step 5. 조회",
+      "item": [
+        {
+          "name": "5-1. 🔧 배지 목록",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('배지 목록', function() {",
+            "    var d = pm.response.json().data;",
+            "    console.log('총', d.total_count, '건');",
+            "    (d.items||[]).forEach(function(b,i) {",
+            "        console.log((i+1)+'.', b.credential_id, '-', b.recipient_name, '-', b.status);",
+            "    });",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/v1/badges?page=1&per_page=20", "host": ["{{base_url}}"], "path": ["api","v1","badges"], "query": [{"key":"page","value":"1"},{"key":"per_page","value":"20"}] } }
+        },
+        {
+          "name": "5-2. 🔧 검증 이력",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('검증 이력', function() {",
+            "    console.log('검증 이력:', pm.response.json().data.total_count, '건');",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/v1/history/verifications?page=1&per_page=20", "host": ["{{base_url}}"], "path": ["api","v1","history","verifications"], "query": [{"key":"page","value":"1"},{"key":"per_page","value":"20"}] } }
+        }
+      ]
+    },
+    {
+      "name": "Step 6. 배지 #1 — 이미지 교체 재발급",
+      "item": [
+        {
+          "name": "6-1. 🔧 이미지 교체 재발급",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('재발급 성공', function() {",
+            "    pm.response.to.have.status(201);",
+            "    var d = pm.response.json().data;",
+            "    var newId = (d.id||'').split('/').pop();",
+            "    var oldId = pm.collectionVariables.get('badge1_id');",
+            "    pm.expect(newId).to.not.eql(oldId);",
+            "    pm.collectionVariables.set('reissued_badge_json', JSON.stringify(d));",
+            "    pm.collectionVariables.set('reissued_id', newId);",
+            "    console.log('=== 이미지 교체 재발급 ===');",
+            "    console.log('기존 ID:', oldId);",
+            "    console.log('새 ID:', newId);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/c/{{badge1_id}}/reissue",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"image_base64\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVQIW2P8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==\"\n}", "options": { "raw": { "language": "json" } } },
+            "description": "배지 #1의 이미지만 교체하여 재발급.\n새 credential_id + 새 서명."
+          }
+        },
+        {
+          "name": "6-2. 🔧 재발급 배지 검증 → valid: true",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('재발급 배지 검증 성공', function() {",
+            "    pm.expect(pm.response.json().data.valid).to.be.true;",
+            "    console.log('재발급 배지: ✅ valid');",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/verify-sync",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{reissued_badge_json}}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Step 7. 배지 #2 — 오발급 취소",
+      "item": [
+        {
+          "name": "7-1. 🔧 배지 #2 취소 요청",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('취소 성공', function() {",
+            "    pm.response.to.have.status(200);",
+            "    var d = pm.response.json().data;",
+            "    pm.expect(d.status).to.eql('revoked');",
+            "    console.log('=== 오발급 취소 ===');",
+            "    console.log('credential_id:', d.credential_id);",
+            "    console.log('상태:', d.status);",
+            "    console.log('사유:', d.reason);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/c/{{badge2_id}}/revoke",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"학번 오기입으로 인한 오발급\"\n}", "options": { "raw": { "language": "json" } } },
+            "description": "배지 #2를 오발급 사유로 취소.\nDB 상태 → revoked + 블록체인에 취소 기록."
+          }
+        },
+        {
+          "name": "7-2. 🔧 취소된 배지 #2 검증 → valid: false",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('취소된 배지 검증 실패', function() {",
+            "    var d = pm.response.json().data;",
+            "    pm.expect(d.valid).to.be.false;",
+            "    console.log('취소된 배지 검증: ❌ invalid');",
+            "    console.log('에러:', d.errors);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/verify-sync",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{badge2_json}}", "options": { "raw": { "language": "json" } } },
+            "description": "취소된 배지를 검증하면 revoked → valid: false"
+          }
+        },
+        {
+          "name": "7-3. 🔧 이미 취소된 배지 재취소 → 409",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('중복 취소 에러 (409)', function() {",
+            "    pm.response.to.have.status(409);",
+            "    console.log('중복 취소: 409 ❌');",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/c/{{badge2_id}}/revoke",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"중복 취소 테스트\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "7-4. 🔧 취소 후 배지 목록 확인 (status=revoked)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('취소된 배지 목록', function() {",
+            "    var d = pm.response.json().data;",
+            "    console.log('revoked 배지:', d.total_count, '건');",
+            "    (d.items||[]).forEach(function(b,i) {",
+            "        console.log((i+1)+'.', b.credential_id, '-', b.recipient_name);",
+            "    });",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/v1/badges?status=revoked&page=1&per_page=20", "host": ["{{base_url}}"], "path": ["api","v1","badges"], "query": [{"key":"status","value":"revoked"},{"key":"page","value":"1"},{"key":"per_page","value":"20"}] } }
+        }
+      ]
+    },
+    {
+      "name": "Step 8. 에러 케이스",
+      "item": [
+        {
+          "name": "8-1. 🔧 필수 필드 누락 → 422",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('필수 필드 누락', function() {",
+            "    pm.response.to.have.status(422);",
+            "    console.log('에러:', pm.response.json().title);",
+            "});"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"achievement_name\": \"테스트\" }", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "8-2. 🔧 존재하지 않는 배지 → 404",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', function() { pm.response.to.have.status(404); });"
+          ]}}],
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/badges/c/FAKE-99999" }
+        },
+        {
+          "name": "8-3. 🔧 존재하지 않는 배지 취소 → 404",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404', function() { pm.response.to.have.status(404); });"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/badges/c/FAKE-99999/revoke",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"reason\": \"테스트\" }", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Step 9. 블록체인 확인 (Polygonscan)",
+      "item": [
+        {
+          "name": "9-1. 🌐 KeyRegistry",
+          "request": { "method": "GET", "url": "https://polygonscan.com/address/0x4a6f1e4b94fbd6DdFb4e10e0D02CB7c563DBf868#readContract", "description": "🌐 브라우저에서 Polygonscan 접속\n\nRead Contract:\n- getActiveKey() → 공개키\n- registeredDid() → did:web:thebadge.kr\n\n(Postman에서 실행하지 않음)" }
+        },
+        {
+          "name": "9-2. 🌐 BadgeRegistry",
+          "request": { "method": "GET", "url": "https://polygonscan.com/address/0xB23E1c103E326D0A28135e91D1D610bB038BE632#readContract", "description": "🌐 브라우저에서 Polygonscan 접속\n\nRead Contract:\n- isIssued(credential_id) → true\n- isRevoked(배지#2 credential_id) → true (취소됨)\n- getBadgeStatus(credential_id) → 전체 상태\n\n(Postman에서 실행하지 않음)" }
+        }
+      ]
+    }
+  ]
+}
